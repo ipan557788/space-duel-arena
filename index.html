@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Space Duel Arena</title>
+<style>
+  :root{
+    --p1: #34e0ff;
+    --p2: #ff5c8a;
+    --cpu: #ff9d3a;
+    --accent: #ffd83a;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{
+    height:100%;
+    background:#000;
+    overflow:hidden;
+    font-family:'Segoe UI', Arial, sans-serif;
+    color:#eaf6ff;
+  }
+  #game-wrap{
+    position:relative;
+    width:100vw;
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  canvas{
+    background:#000;
+    display:block;
+    max-width:100vw;
+    max-height:100vh;
+    box-shadow:0 0 60px rgba(52,224,255,0.15);
+  }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:absolute;
+    top:0; left:0; right:0;
+    display:flex;
+    justify-content:space-between;
+    padding:14px 22px;
+    pointer-events:none;
+    z-index:5;
+  }
+  .hud-box{
+    background:rgba(10,14,28,0.55);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:10px;
+    padding:8px 14px;
+    backdrop-filter:blur(4px);
+    font-size:14px;
+    line-height:1.5;
+  }
+  .healthbar{
+    width:140px; height:10px;
+    background:rgba(255,255,255,0.15);
+    border-radius:6px;
+    overflow:hidden;
+    margin-top:4px;
+  }
+  .healthbar-fill{
+    height:100%;
+    width:100%;
+    transition:width .15s ease;
+  }
+  #hud-center{
+    text-align:center;
+  }
+  #timer{
+    font-size:26px;
+    font-weight:700;
+    letter-spacing:1px;
+    text-shadow:0 0 10px rgba(255,216,58,0.7);
+  }
+  #level-label{
+    font-size:12px;
+    opacity:0.8;
+    letter-spacing:2px;
+  }
+
+  /* ---------- Notifications ---------- */
+  #notif-area{
+    position:absolute;
+    top:90px; left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    z-index:10;
+    pointer-events:none;
+  }
+  .notif{
+    background:rgba(10,14,28,0.75);
+    border:1px solid rgba(255,216,58,0.6);
+    color:#ffd83a;
+    padding:8px 22px;
+    border-radius:30px;
+    font-weight:700;
+    font-size:16px;
+    letter-spacing:1px;
+    opacity:0;
+    animation:notifPop 2.4s ease forwards;
+    text-shadow:0 0 8px rgba(255,216,58,0.8);
+  }
+  @keyframes notifPop{
+    0%{opacity:0; transform:translateY(-10px) scale(0.9);}
+    12%{opacity:1; transform:translateY(0) scale(1);}
+    80%{opacity:1;}
+    100%{opacity:0; transform:translateY(-6px) scale(0.95);}
+  }
+
+  /* ---------- Overlays ---------- */
+  .overlay{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(10,16,35,0.85) 0%, rgba(0,0,0,0.95) 100%);
+    z-index:20;
+    text-align:center;
+    padding:20px;
+  }
+  .hidden{display:none !important;}
+  h1.title{
+    font-size:clamp(32px,6vw,58px);
+    background:linear-gradient(90deg,#34e0ff,#ffd83a,#ff5c8a);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+    text-shadow:0 0 40px rgba(52,224,255,0.3);
+    letter-spacing:2px;
+    margin-bottom:6px;
+  }
+  .subtitle{
+    opacity:0.75;
+    margin-bottom:28px;
+    font-size:14px;
+    letter-spacing:1px;
+  }
+  .menu-btn{
+    background:linear-gradient(135deg, rgba(52,224,255,0.15), rgba(255,92,138,0.15));
+    border:1px solid rgba(255,255,255,0.25);
+    color:#eaf6ff;
+    padding:14px 34px;
+    margin:8px;
+    border-radius:12px;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+    letter-spacing:1px;
+    transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    min-width:260px;
+  }
+  .menu-btn:hover{
+    transform:translateY(-2px) scale(1.02);
+    border-color:var(--accent);
+    box-shadow:0 6px 24px rgba(255,216,58,0.25);
+  }
+  .menu-btn small{
+    display:block;
+    font-weight:400;
+    opacity:0.7;
+    font-size:11px;
+    margin-top:4px;
+    letter-spacing:0.5px;
+  }
+  .controls-box{
+    margin-top:22px;
+    font-size:12px;
+    opacity:0.65;
+    max-width:520px;
+    line-height:1.8;
+  }
+  .controls-box b{color:#ffd83a;}
+  #result-title{
+    font-size:clamp(28px,5vw,44px);
+    margin-bottom:10px;
+  }
+  #result-detail{
+    font-size:15px;
+    opacity:0.85;
+    margin-bottom:24px;
+    line-height:1.7;
+  }
+  .mute-toggle{
+    position:absolute;
+    top:14px; right:14px;
+    z-index:30;
+    background:rgba(10,14,28,0.55);
+    border:1px solid rgba(255,255,255,0.2);
+    color:#eaf6ff;
+    border-radius:8px;
+    padding:8px 12px;
+    cursor:pointer;
+    font-size:13px;
+    pointer-events:all;
+  }
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <canvas id="game" width="900" height="600"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="hud-box" id="p1-box">
+      <div>PLAYER 1</div>
+      <div class="healthbar"><div class="healthbar-fill" id="p1-hp" style="background:var(--p1)"></div></div>
+      <div>Skor: <span id="p1-score">0</span></div>
+    </div>
+    <div id="hud-center" class="hud-box">
+      <div id="level-label">LEVEL 1</div>
+      <div id="timer">60</div>
+    </div>
+    <div class="hud-box" id="p2-box">
+      <div id="p2-label">MUSUH (CPU)</div>
+      <div class="healthbar"><div class="healthbar-fill" id="p2-hp" style="background:var(--cpu)"></div></div>
+      <div>Skor: <span id="p2-score">0</span></div>
+    </div>
+  </div>
+
+  <div id="notif-area"></div>
+
+  <button class="mute-toggle" id="mute-btn">🔊 Suara: ON</button>
+
+  <!-- MAIN MENU -->
+  <div class="overlay" id="menu-overlay">
+    <h1 class="title">SPACE DUEL ARENA</h1>
+    <div class="subtitle">Pertempuran luar angkasa 2D — bertahan hidup, naik level, kalahkan lawan</div>
+
+    <button class="menu-btn" id="btn-1p">🤖 1 PEMAIN — Lawan Komputer<small>Bertahan melewati level dengan musuh AI yang makin sulit</small></button>
+    <button class="menu-btn" id="btn-2p">🎮 2 PEMAIN — Lokal Berdua<small>Satu keyboard, saling berhadapan</small></button>
+
+    <div class="controls-box">
+      <b>Kontrol Player 1:</b> W A S D gerak · SPASI tembak<br>
+      <b>Kontrol Player 2 / diam-diam CPU:</b> Panah gerak · ENTER tembak<br>
+      Tekan <b>ESC</b> kapan saja untuk kembali ke menu.
+    </div>
+  </div>
+
+  <!-- GAME OVER -->
+  <div class="overlay hidden" id="gameover-overlay">
+    <h1 id="result-title" class="title">GAME OVER</h1>
+    <div id="result-detail"></div>
+    <button class="menu-btn" id="btn-restart">🔁 Main Lagi</button>
+    <button class="menu-btn" id="btn-menu">🏠 Menu Utama</button>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   SPACE DUEL ARENA
+   Game 2D single-file, cocok untuk GitHub Pages.
+   Fitur: waktu, level, notifikasi, suara (WebAudio),
+   musuh AI komputer, mode 2 pemain lokal,
+   latar belakang animasi (starfield + nebula parallax).
+   ========================================================= */
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+/* ---------------- AUDIO (tanpa file eksternal) ---------------- */
+let audioCtx = null;
+let muted = false;
+function ensureAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+function beep(freq, dur, type='sine', vol=0.15, glideTo=null){
+  if(muted) return;
+  ensureAudio();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  if(glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, audioCtx.currentTime + dur);
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  o.stop(audioCtx.currentTime + dur);
+}
+const sfx = {
+  shoot: () => beep(680, 0.08, 'square', 0.06, 420),
+  hit: () => beep(160, 0.15, 'sawtooth', 0.12, 60),
+  levelup: () => { beep(440,0.12,'triangle',0.14,660); setTimeout(()=>beep(660,0.15,'triangle',0.14,880),110); },
+  explode: () => beep(90, 0.4, 'sawtooth', 0.18, 20),
+  win: () => { beep(523,0.15,'triangle',0.15,784); setTimeout(()=>beep(784,0.2,'triangle',0.15,1046),150); },
+  lose: () => { beep(220,0.3,'sawtooth',0.15,80); setTimeout(()=>beep(140,0.4,'sawtooth',0.15,40),200); }
+};
+document.getElementById('mute-btn').addEventListener('click', (e)=>{
+  muted = !muted;
+  e.target.textContent = muted ? '🔇 Suara: OFF' : '🔊 Suara: ON';
+});
+
+/* ---------------- BACKGROUND: parallax starfield + nebula ---------------- */
+const starLayers = [
+  {count:70, speed:0.15, size:1.0, stars:[]},
+  {count:45, speed:0.35, size:1.6, stars:[]},
+  {count:25, speed:0.7,  size:2.4, stars:[]},
+];
+starLayers.forEach(layer=>{
+  for(let i=0;i<layer.count;i++){
+    layer.stars.push({x:Math.random()*W, y:Math.random()*H, tw:Math.random()*Math.PI*2});
+  }
+});
+let bgTime = 0;
+function drawBackground(dt){
+  bgTime += dt;
+  // deep space gradient
+  const grad = ctx.createRadialGradient(W*0.3,H*0.25,50, W*0.5,H*0.5, W*0.9);
+  grad.addColorStop(0,'#131a33');
+  grad.addColorStop(0.5,'#0a0e1e');
+  grad.addColorStop(1,'#020308');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,H);
+
+  // nebula soft blobs (animated)
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const nebulas = [
+    {x: W*0.2 + Math.sin(bgTime*0.05)*30, y:H*0.3, r:220, c:'rgba(52,90,224,0.10)'},
+    {x: W*0.8 + Math.cos(bgTime*0.04)*30, y:H*0.65, r:260, c:'rgba(224,52,140,0.08)'},
+    {x: W*0.5 + Math.sin(bgTime*0.03)*40, y:H*0.8, r:200, c:'rgba(52,224,200,0.07)'},
+  ];
+  nebulas.forEach(n=>{
+    const ng = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
+    ng.addColorStop(0, n.c);
+    ng.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ng;
+    ctx.fillRect(0,0,W,H);
+  });
+  ctx.restore();
+
+  // parallax stars, twinkling
+  starLayers.forEach(layer=>{
+    layer.stars.forEach(s=>{
+      s.y += layer.speed;
+      if(s.y > H) { s.y = 0; s.x = Math.random()*W; }
+      const tw = 0.5 + 0.5*Math.sin(bgTime*2 + s.tw);
+      ctx.fillStyle = `rgba(255,255,255,${0.3 + tw*0.7})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, layer.size, 0, Math.PI*2);
+      ctx.fill();
+    });
+  });
+}
+
+/* ---------------- GAME STATE ---------------- */
+const keys = {};
+window.addEventListener('keydown', e=>{
+  keys[e.code] = true;
+  if(e.code === 'Escape') backToMenu();
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+});
+window.addEventListener('keyup', e=> keys[e.code] = false);
+
+let mode = null; // '1p' or '2p'
+let running = false;
+let particles = [];
+let bullets = [];
+let notifTimeout = null;
+
+const LEVEL_TIME = 45; // seconds per level
+let levelTimeLeft = LEVEL_TIME;
+let level = 1;
+const MAX_LEVEL = 5;
+
+function makeShip(x,y,color,facing){
+  return {
+    x, y, color, facing, // facing: -1 up, 1 down
+    vx:0, vy:0,
+    r:16,
+    hp:100, maxHp:100,
+    score:0,
+    cooldown:0,
+    alive:true,
+    thrusterPulse:0,
+    aiState:{dir:1, shootTimer: 1 + Math.random()}
+  };
+}
+
+let p1, p2;
+let isP2CPU = true;
+
+function resetGame(selectedMode){
+  mode = selectedMode;
+  isP2CPU = (mode === '1p');
+  level = 1;
+  levelTimeLeft = LEVEL_TIME;
+  bullets = [];
+  particles = [];
+  p1 = makeShip(W/2, H-80, getComputedColor('--p1'), -1);
+  p2 = makeShip(W/2, 80, isP2CPU ? getComputedColor('--cpu') : getComputedColor('--p2'), 1);
+  document.getElementById('p2-label').textContent = isP2CPU ? 'MUSUH (CPU)' : 'PLAYER 2';
+  updateHUD();
+  showNotif(`LEVEL ${level} DIMULAI`);
+  running = true;
+}
+
+function getComputedColor(varName){
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+/* ---------------- NOTIFICATIONS ---------------- */
+function showNotif(text){
+  const area = document.getElementById('notif-area');
+  const el = document.createElement('div');
+  el.className = 'notif';
+  el.textContent = text;
+  area.appendChild(el);
+  setTimeout(()=> el.remove(), 2400);
+}
+
+/* ---------------- PARTICLES ---------------- */
+function spawnExplosion(x,y,color){
+  for(let i=0;i<22;i++){
+    const ang = Math.random()*Math.PI*2;
+    const spd = 1 + Math.random()*3.5;
+    particles.push({
+      x,y, vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
+      life:1, decay:0.02+Math.random()*0.02, size:2+Math.random()*3, color
+    });
+  }
+}
+function spawnThruster(ship){
+  const dir = ship.facing;
+  particles.push({
+    x: ship.x + (Math.random()-0.5)*8,
+    y: ship.y + dir*18,
+    vx:(Math.random()-0.5)*0.5,
+    vy: dir*(1.5+Math.random()),
+    life:1, decay:0.06, size:2+Math.random()*2,
+    color: ship.color
+  });
+}
+function updateParticles(){
+  particles.forEach(p=>{
+    p.x += p.vx; p.y += p.vy; p.life -= p.decay;
+  });
+  particles = particles.filter(p=>p.life>0);
+}
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.globalAlpha = Math.max(p.life,0);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+/* ---------------- SHIP DRAWING (stylized realistic-ish) ---------------- */
+function drawShip(ship){
+  if(!ship || !ship.alive) return;
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+  const angle = ship.facing === -1 ? -Math.PI/2 : Math.PI/2;
+  ctx.rotate(angle);
+
+  // glow
+  ctx.shadowColor = ship.color;
+  ctx.shadowBlur = 18;
+
+  // hull gradient
+  const grad = ctx.createLinearGradient(-ship.r,0,ship.r,0);
+  grad.addColorStop(0, shadeColor(ship.color, -40));
+  grad.addColorStop(0.5, ship.color);
+  grad.addColorStop(1, shadeColor(ship.color, -40));
+  ctx.fillStyle = grad;
+
+  ctx.beginPath();
+  ctx.moveTo(18,0);
+  ctx.lineTo(-10,-12);
+  ctx.lineTo(-5,0);
+  ctx.lineTo(-10,12);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // cockpit
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.ellipse(4,0,4,2.5,0,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+function shadeColor(hex, amt){
+  // hex like #34e0ff
+  let c = hex.replace('#','');
+  if(c.length===3) c = c.split('').map(x=>x+x).join('');
+  const num = parseInt(c,16);
+  let r = (num>>16) + amt;
+  let g = ((num>>8)&0xff) + amt;
+  let b = (num&0xff) + amt;
+  r = Math.min(255,Math.max(0,r));
+  g = Math.min(255,Math.max(0,g));
+  b = Math.min(255,Math.max(0,b));
+  return `rgb(${r},${g},${b})`;
+}
+
+/* ---------------- BULLETS ---------------- */
+function shoot(ship, ownerId){
+  if(ship.cooldown > 0 || !ship.alive) return;
+  ship.cooldown = 0.28;
+  bullets.push({
+    x: ship.x, y: ship.y + ship.facing*20,
+    vy: ship.facing * 9,
+    owner: ownerId, color: ship.color, r:4
+  });
+  sfx.shoot();
+}
+function updateBullets(dt){
+  bullets.forEach(b=> b.y += b.vy);
+  bullets = bullets.filter(b=> b.y > -20 && b.y < H+20);
+
+  // collision
+  bullets.forEach(b=>{
+    const target = b.owner === 'p1' ? p2 : p1;
+    if(!target.alive) return;
+    const dx = b.x - target.x, dy = b.y - target.y;
+    if(Math.sqrt(dx*dx+dy*dy) < target.r + b.r){
+      target.hp -= 12;
+      b.hit = true;
+      spawnExplosion(b.x,b.y, target.color);
+      sfx.hit();
+      if(target.hp <= 0 && target.alive){
+        target.alive = false;
+        spawnExplosion(target.x, target.y, target.color);
+        sfx.explode();
+        if(b.owner==='p1') p1.score += 100; else p2.score += 100;
+      }
+    }
+  });
+  bullets = bullets.filter(b=>!b.hit);
+}
+function drawBullets(){
+  bullets.forEach(b=>{
+    ctx.save();
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = b.color;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+/* ---------------- INPUT / MOVEMENT ---------------- */
+const SPEED = 4.2;
+function updatePlayer1(){
+  if(!p1.alive) return;
+  let dx=0, dy=0;
+  if(keys['KeyA']) dx -= 1;
+  if(keys['KeyD']) dx += 1;
+  if(keys['KeyW']) dy -= 1;
+  if(keys['KeyS']) dy += 1;
+  moveShip(p1, dx, dy);
+  if(keys['Space']) shoot(p1,'p1');
+}
+function updatePlayer2Human(){
+  if(!p2.alive) return;
+  let dx=0, dy=0;
+  if(keys['ArrowLeft']) dx -= 1;
+  if(keys['ArrowRight']) dx += 1;
+  if(keys['ArrowUp']) dy -= 1;
+  if(keys['ArrowDown']) dy += 1;
+  moveShip(p2, dx, dy);
+  if(keys['Enter']) shoot(p2,'p2');
+}
+function moveShip(ship, dx, dy){
+  const len = Math.hypot(dx,dy) || 1;
+  ship.x += (dx/len) * SPEED;
+  ship.y += (dy/len) * SPEED;
+  ship.x = Math.max(24, Math.min(W-24, ship.x));
+  // keep each ship roughly in their half, but allow slight crossing for tension
+  if(ship === p1) ship.y = Math.max(H*0.45, Math.min(H-24, ship.y));
+  else ship.y = Math.max(24, Math.min(H*0.55, ship.y));
+  if(dx||dy){
+    ship.thrusterPulse += 1;
+    if(ship.thrusterPulse % 2 === 0) spawnThruster(ship);
+  }
+}
+
+/* ---------------- CPU AI ---------------- */
+function updateCPU(dt){
+  if(!p2.alive) return;
+  const ai = p2.aiState;
+
+  // dodge bullets aimed at it, else track player horizontally
+  let dodge = 0;
+  bullets.forEach(b=>{
+    if(b.owner==='p1' && Math.abs(b.x - p2.x) < 26 && b.y < p2.y && b.y > p2.y - 160){
+      dodge = (b.x < p2.x) ? 1 : -1;
+    }
+  });
+
+  let dx;
+  if(dodge !== 0){
+    dx = dodge;
+  } else {
+    const diff = p1.x - p2.x;
+    dx = Math.abs(diff) > 10 ? Math.sign(diff) * (0.4 + level*0.08) : 0;
+  }
+  const dy = Math.sin(Date.now()/500) * 0.3; // gentle bob
+  moveShip(p2, dx, dy);
+
+  ai.shootTimer -= dt;
+  const fireRate = Math.max(0.45, 1.3 - level*0.15); // faster as level increases
+  if(ai.shootTimer <= 0){
+    // only shoot with reasonable alignment chance, improves with level
+    const alignChance = 0.5 + level*0.08;
+    if(Math.random() < alignChance) shoot(p2,'p2');
+    ai.shootTimer = fireRate + Math.random()*0.3;
+  }
+}
+
+/* ---------------- HUD ---------------- */
+function updateHUD(){
+  document.getElementById('p1-hp').style.width = Math.max(p1.hp,0)+'%';
+  document.getElementById('p2-hp').style.width = Math.max(p2.hp,0)+'%';
+  document.getElementById('p1-score').textContent = p1.score;
+  document.getElementById('p2-score').textContent = p2.score;
+  document.getElementById('level-label').textContent = `LEVEL ${level}`;
+  document.getElementById('timer').textContent = Math.ceil(levelTimeLeft);
+}
+
+/* ---------------- GAME LOOP ---------------- */
+let lastTime = performance.now();
+function loop(now){
+  try{
+    const dt = Math.min((now - lastTime)/1000, 0.05);
+    lastTime = now;
+
+    drawBackground(dt);
+
+    if(running && p1 && p2){
+      // cooldowns
+      p1.cooldown = Math.max(0, p1.cooldown - dt);
+      p2.cooldown = Math.max(0, p2.cooldown - dt);
+
+      updatePlayer1();
+      if(isP2CPU) updateCPU(dt); else updatePlayer2Human();
+
+      updateBullets(dt);
+      updateParticles();
+
+      // timer / level progression
+      levelTimeLeft -= dt;
+      if(levelTimeLeft <= 0){
+        levelUp();
+      }
+
+      // win/lose conditions
+      if(isP2CPU){
+        // 1 Pemain: kalahkan CPU = naik level (musuh respawn lebih kuat).
+        // Game over hanya kalau HP Player 1 habis.
+        if(!p1.alive){
+          finishGame('p2');
+        } else if(!p2.alive){
+          p1.score += 50; // bonus mengalahkan musuh
+          showNotif('MUSUH DIKALAHKAN! +50');
+          levelUp(true); // true = jangan reset waktu, langsung lanjut
+        }
+      } else {
+        // 2 Pemain: siapa saja mati, ronde selesai.
+        if(!p1.alive || !p2.alive){
+          endRound();
+        }
+      }
+
+      updateHUD();
+    }
+
+    drawBullets();
+    drawShip(p1);
+    drawShip(p2);
+    drawParticles();
+  } catch(err){
+    console.error('Game loop error:', err);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function levelUp(instant){
+  if(level >= MAX_LEVEL && (instant || levelTimeLeft <= 0)){
+    // sudah menang semua level
+    finishGame('survive');
+    return;
+  }
+  level++;
+  levelTimeLeft = LEVEL_TIME;
+
+  if(isP2CPU){
+    // musuh CPU respawn lagi, makin kuat tiap level (HP naik sedikit)
+    p2.alive = true;
+    p2.maxHp = 100 + (level-1)*15;
+    p2.hp = p2.maxHp;
+    p2.x = W/2;
+    p2.y = 80;
+    // Player 1 heal sedikit sebagai hadiah naik level
+    p1.hp = Math.min(p1.maxHp, p1.hp + 20);
+  } else {
+    p1.hp = Math.min(p1.maxHp, p1.hp + 20);
+    p2.hp = Math.min(p2.maxHp, p2.hp + 20);
+  }
+
+  setTimeout(()=>{
+    showNotif(`LEVEL ${level}! MUSUH MAKIN KUAT`);
+    sfx.levelup();
+  }, instant ? 300 : 0);
+}
+
+function endRound(){
+  if(!p1.alive && !p2.alive){
+    finishGame('draw');
+  } else if(!p2.alive){
+    finishGame('p1');
+  } else {
+    finishGame('p2');
+  }
+}
+
+function finishGame(winner){
+  running = false;
+  const overlay = document.getElementById('gameover-overlay');
+  const title = document.getElementById('result-title');
+  const detail = document.getElementById('result-detail');
+
+  if(winner === 'p1'){
+    title.textContent = isP2CPU ? '🏆 KAMU MENANG!' : '🏆 PLAYER 1 MENANG!';
+    sfx.win();
+  } else if(winner === 'p2'){
+    title.textContent = isP2CPU ? '💥 KAMU KALAH' : '🏆 PLAYER 2 MENANG!';
+    if(isP2CPU) sfx.lose(); else sfx.win();
+  } else if(winner === 'survive'){
+    title.textContent = '🌟 SEMUA LEVEL SELESAI!';
+    sfx.win();
+  } else {
+    title.textContent = '🤝 SERI!';
+  }
+
+  detail.innerHTML = `Level tercapai: <b>${level}</b><br>
+    Skor Player 1: <b>${p1.score}</b> &nbsp;|&nbsp; Skor ${isP2CPU?'CPU':'Player 2'}: <b>${p2.score}</b>`;
+
+  overlay.classList.remove('hidden');
+  document.getElementById('hud').classList.add('hidden');
+}
+
+/* ---------------- MENU / OVERLAY LOGIC ---------------- */
+function startGame(selectedMode){
+  ensureAudio();
+  document.getElementById('menu-overlay').classList.add('hidden');
+  document.getElementById('gameover-overlay').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('notif-area').innerHTML = '';
+  resetGame(selectedMode);
+}
+function backToMenu(){
+  running = false;
+  document.getElementById('menu-overlay').classList.remove('hidden');
+  document.getElementById('gameover-overlay').classList.add('hidden');
+  document.getElementById('hud').classList.add('hidden');
+}
+
+document.getElementById('btn-1p').addEventListener('click', ()=> startGame('1p'));
+document.getElementById('btn-2p').addEventListener('click', ()=> startGame('2p'));
+document.getElementById('btn-restart').addEventListener('click', ()=> startGame(mode));
+document.getElementById('btn-menu').addEventListener('click', backToMenu);
+</script>
+</body>
+</html>
