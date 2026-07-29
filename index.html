@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Space Duel Arena - Mobile Edition</title>
+<title>Space Duel Arena - Touch Edition</title>
 <style>
 :root {
     --p1: #34e0ff;
@@ -36,6 +36,7 @@ canvas{
     width: 100%;
     height: 100%;
     object-fit: contain;
+    cursor: crosshair;
 }
 #hud{
     position:absolute;
@@ -98,60 +99,6 @@ canvas{
     100%{opacity:0; transform: translateY(-6px) scale(0.95);}
 }
 
-/* VIRTUAL CONTROLS FOR MOBILE */
-#mobile-controls {
-    position: absolute;
-    bottom: 20px;
-    left: 0; right: 0;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 20px;
-    z-index: 25;
-    pointer-events: none;
-}
-.dpad {
-    display: grid;
-    grid-template-columns: repeat(3, 50px);
-    grid-template-rows: repeat(3, 50px);
-    gap: 4px;
-    pointer-events: auto;
-}
-.dpad-btn {
-    background: rgba(52, 224, 255, 0.15);
-    border: 1px solid rgba(52, 224, 255, 0.4);
-    color: #fff;
-    font-size: 18px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
-    active { background: rgba(52, 224, 255, 0.4); }
-}
-.action-pads {
-    display: flex;
-    gap: 10px;
-    pointer-events: auto;
-    align-items: center;
-}
-.action-btn {
-    width: 65px; height: 65px;
-    background: rgba(255, 92, 138, 0.2);
-    border: 1px solid rgba(255, 92, 138, 0.5);
-    color: #fff;
-    border-radius: 50%;
-    font-size: 14px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
-}
-#btn-up { grid-column: 2; grid-row: 1; }
-#btn-left { grid-column: 1; grid-row: 2; }
-#btn-right { grid-column: 3; grid-row: 2; }
-#btn-down { grid-column: 2; grid-row: 3; }
-
 .overlay{
     position:absolute;
     inset:0;
@@ -210,7 +157,7 @@ h1.title{
     top:10px; right:10px;
     z-index:40;
     background:rgba(10,14,28,0.6);
-    border:1px sent rgba(255,255,255,0.2);
+    border:1px solid rgba(255,255,255,0.2);
     color:#eaf6ff;
     border-radius:6px;
     padding: 6px 10px;
@@ -238,20 +185,6 @@ h1.title{
         </div>
     </div>
 
-    <!-- TOMBOL VIRTUAL HP (DPAD & TEMBAK) -->
-    <div id="mobile-controls" class="hidden">
-        <div class="dpad">
-            <button class="dpad-btn" id="btn-up">▲</button>
-            <button class="dpad-btn" id="btn-left">◀</button>
-            <button class="dpad-btn" id="btn-right">▶</button>
-            <button class="dpad-btn" id="btn-down">▼</button>
-        </div>
-        <div class="action-pads">
-            <button class="action-btn" id="btn-skill" style="background: rgba(255,216,58,0.2); border-color:#ffd83a;">SKILL</button>
-            <button class="action-btn" id="btn-fire">FIRE</button>
-        </div>
-    </div>
-
     <div id="notif-area"></div>
     <button class="mute-toggle" id="mute-btn">Suara: ON</button>
 
@@ -267,7 +200,7 @@ h1.title{
         <h1 class="title">SPACE DUEL ARENA</h1>
         <div class="subtitle">SMKN 1 Sanden Bantul</div>
         
-        <button class="menu-btn" id="btn-solo">MODE SOLO<small>Lawan musuh, ambil power-up, & hadapi boss</small></button>
+        <button class="menu-btn" id="btn-solo">MODE SOLO<small>Sentuh & seret layar untuk gerak, tembak otomatis!</small></button>
         <button class="menu-btn" id="btn-duet">MODE 2 PEMAIN<small>Duel 1 vs 1</small></button>
     </div>
 
@@ -308,8 +241,6 @@ const sfx = {
     hit: () => beep(160, 0.15, 'sawtooth', 0.1),
     levelup: () => beep(440, 0.2, 'triangle', 0.12),
     explode: () => beep(90, 0.3, 'sawtooth', 0.15),
-    powerup: () => beep(520, 0.15, 'sine', 0.15),
-    skill: () => beep(150, 0.5, 'sawtooth', 0.2),
     lose: () => beep(220, 0.3, 'sawtooth', 0.15)
 };
 
@@ -318,32 +249,47 @@ document.getElementById('mute-btn').addEventListener('click', (e)=>{
     e.target.textContent = muted ? 'Suara: OFF' : 'Suara: ON';
 });
 
-const keys = {};
-window.addEventListener('keydown', e=>{ keys[e.code] = true; if(e.code==='Escape') backToMenu(); });
-window.addEventListener('keyup', e=> keys[e.code] = false);
+// Touch / Mouse Tracking for Smooth Dragging
+let touchTargetX = null;
+let touchTargetY = null;
 
-// Touch Controller Bindings for Mobile
-function bindTouchButton(id, codeName) {
-    const el = document.getElementById(id);
-    if(!el) return;
-    el.addEventListener('touchstart', (e)=>{ e.preventDefault(); keys[codeName] = true; });
-    el.addEventListener('touchend', (e)=>{ e.preventDefault(); keys[codeName] = false; });
-    el.addEventListener('mousedown', (e)=>{ e.preventDefault(); keys[codeName] = true; });
-    el.addEventListener('mouseup', (e)=>{ e.preventDefault(); keys[codeName] = false; });
+function getCanvasCoords(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+    };
 }
-bindTouchButton('btn-up', 'KeyW');
-bindTouchButton('btn-down', 'KeyS');
-bindTouchButton('btn-left', 'KeyA');
-bindTouchButton('btn-right', 'KeyD');
-bindTouchButton('btn-fire', 'Space');
-bindTouchButton('btn-skill', 'KeyE');
+
+window.addEventListener('mousemove', e => {
+    const pos = getCanvasCoords(e.clientX, e.clientY);
+    touchTargetX = pos.x;
+    touchTargetY = pos.y;
+});
+
+window.addEventListener('touchmove', e => {
+    if(e.touches.length > 0) {
+        const pos = getCanvasCoords(e.touches[0].clientX, e.touches[0].clientY);
+        touchTargetX = pos.x;
+        touchTargetY = pos.y;
+    }
+}, {passive: true});
+
+window.addEventListener('touchstart', e => {
+    if(e.touches.length > 0) {
+        const pos = getCanvasCoords(e.touches[0].clientX, e.touches[0].clientY);
+        touchTargetX = pos.x;
+        touchTargetY = pos.y;
+    }
+}, {passive: true});
 
 let running = false;
-let particles = [], bullets = [], enemies = [], powerUps = [];
-let boss = null, enemySpawnTimer = 0;
+let particles = [], bullets = [], enemies = [];
 const LEVEL_TIME = 45;
 let levelTimeLeft = LEVEL_TIME, level = 1;
-let p1, p2;
+let p1;
 
 const starLayers = [
     {count: 50, speed: 0.5, size: 1.0, stars: []},
@@ -366,19 +312,18 @@ function drawBackground(){
 }
 
 function makeShip(x, y, color, facing, hp=100) {
-    return { x, y, color, facing, vx:0, vy:0, r:16, hp, maxHp:hp, score:0, cooldown:0, skillCooldown:0, powerUpTime:0, alive:true };
+    return { x, y, color, facing, r:16, hp, maxHp:hp, score:0, cooldown:0, alive:true };
 }
 
 function resetGame(mode) {
     gameMode = mode; level = 1; levelTimeLeft = LEVEL_TIME;
-    bullets = []; particles = []; enemies = []; powerUps = []; boss = null; enemySpawnTimer = 1;
+    bullets = []; particles = []; enemies = []; enemySpawnTimer = 1;
 
     p1 = makeShip(W/2, H-120, '#34e0ff', -1, 100);
-    p2 = mode === 'duet' ? makeShip(W/2, 120, '#ff5c8a', 1, 100) : null;
+    touchTargetX = p1.x;
+    touchTargetY = p1.y;
 
     document.getElementById('hud').classList.remove('hidden');
-    document.getElementById('mobile-controls').classList.remove('hidden');
-    document.getElementById('p2-hud-box').style.display = mode === 'duet' ? 'block' : 'none';
     running = true;
     showNotif(`GELOMBANG 1 DIMULAI`);
 }
@@ -412,7 +357,7 @@ function drawShip(ship){
 
 function shoot(ship, ownerId) {
     if(ship.cooldown > 0 || !ship.alive) return;
-    ship.cooldown = 0.2;
+    ship.cooldown = 0.18;
     bullets.push({
         x: ship.x, y: ship.y + ship.facing*15,
         vy: ship.facing * 12, vx: 0,
@@ -440,21 +385,20 @@ function updateBullets(){
     bullets = bullets.filter(b => !b.hit);
 }
 
-const SPEED = 5;
 function updatePlayers(){
-    if(p1 && p1.alive) {
-        let dx=0, dy=0;
-        if(keys['KeyA']) dx -= 1;
-        if(keys['KeyD']) dx += 1;
-        if(keys['KeyW']) dy -= 1;
-        if(keys['KeyS']) dy += 1;
-        p1.x += dx * SPEED; p1.y += dy * SPEED;
+    if(p1 && p1.alive && touchTargetX !== null && touchTargetY !== null) {
+        // Smoothly follow finger/mouse position
+        p1.x += (touchTargetX - p1.x) * 0.2;
+        p1.y += (touchTargetY - p1.y) * 0.2;
         p1.x = Math.max(20, Math.min(W-20, p1.x));
         p1.y = Math.max(20, Math.min(H-20, p1.y));
-        if(keys['Space']) shoot(p1, 'p1');
+        
+        // Auto shoot continuously while playing
+        shoot(p1, 'p1');
     }
 }
 
+let enemySpawnTimer = 0;
 function spawnEnemy(){
     const x = Math.random() * (W - 60) + 30;
     enemies.push({ x, y: -20, vy: 2 + (level * 0.3), color: '#ff5c8a', hp: 20, r: 16, alive: true });
@@ -521,7 +465,6 @@ function finishGame(title, detail){
     document.getElementById('result-title').textContent = title;
     document.getElementById('result-detail').innerHTML = `${detail}<br>Skor: <b>${p1.score}</b>`;
     document.getElementById('hud').classList.add('hidden');
-    document.getElementById('mobile-controls').classList.add('hidden');
     sfx.lose();
 }
 
@@ -530,7 +473,6 @@ function backToMenu(){
     document.getElementById('menu-overlay').classList.remove('hidden');
     document.getElementById('gameover-overlay').classList.add('hidden');
     document.getElementById('hud').classList.add('hidden');
-    document.getElementById('mobile-controls').classList.add('hidden');
 }
 
 document.getElementById('btn-solo').addEventListener('click', ()=>{
